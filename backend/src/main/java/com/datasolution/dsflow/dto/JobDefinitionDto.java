@@ -71,12 +71,6 @@ public class JobDefinitionDto {
     @Schema(description = "API 호출 간 지연 시간 (초)", example = "1")
     private Integer delaySeconds;
 
-    @Schema(description = "지역코드 사용 여부", example = "true")
-    private Boolean useRegionCodes;
-
-    @Schema(description = "처리할 월 범위", example = "3")
-    private Integer dateRangeMonths;
-
     @Schema(description = "생성일시")
     private LocalDateTime createdAt;
 

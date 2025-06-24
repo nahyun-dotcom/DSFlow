@@ -108,24 +108,19 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO dsflow;
 
 -- 지역코드 테이블 생성
 CREATE TABLE IF NOT EXISTS region_codes (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     lawd_cd VARCHAR(5) NOT NULL UNIQUE,
     region_name VARCHAR(100) NOT NULL,
     sido_name VARCHAR(100),
     gugun_name VARCHAR(100),
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-
--- JobDefinition 테이블에서 특정 필드들 제거하고 일반적인 필드들만 유지
-ALTER TABLE job_definitions 
-DROP COLUMN IF EXISTS use_region_codes,
-DROP COLUMN IF EXISTS date_range_months;
 
 -- Job 파라미터 설정 테이블 생성
 CREATE TABLE IF NOT EXISTS job_parameter_configs (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     job_definition_id BIGINT NOT NULL,
     parameter_name VARCHAR(50) NOT NULL,
     value_source_type VARCHAR(20) NOT NULL,
@@ -134,12 +129,12 @@ CREATE TABLE IF NOT EXISTS job_parameter_configs (
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     sort_order INT NOT NULL DEFAULT 0,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (job_definition_id) REFERENCES job_definitions(id) ON DELETE CASCADE
 );
 
 -- 서울특별시 주요 구 지역코드 샘플 데이터 삽입
-INSERT IGNORE INTO region_codes (lawd_cd, region_name, sido_name, gugun_name, is_active) VALUES
+INSERT INTO region_codes (lawd_cd, region_name, sido_name, gugun_name, is_active) VALUES
 ('11110', '서울특별시 종로구', '서울특별시', '종로구', TRUE),
 ('11140', '서울특별시 중구', '서울특별시', '중구', TRUE),
 ('11170', '서울특별시 용산구', '서울특별시', '용산구', TRUE),
@@ -193,10 +188,11 @@ INSERT IGNORE INTO region_codes (lawd_cd, region_name, sido_name, gugun_name, is
 ('41590', '경기도 광주시', '경기도', '광주시', TRUE),
 ('41610', '경기도 양주시', '경기도', '양주시', TRUE),
 ('41630', '경기도 포천시', '경기도', '포천시', TRUE),
-('41650', '경기도 여주시', '경기도', '여주시', TRUE);
+('41650', '경기도 여주시', '경기도', '여주시', TRUE)
+ON CONFLICT (lawd_cd) DO NOTHING;
 
 -- 부동산 실거래가 데이터 수집을 위한 샘플 Job 정의 추가
-INSERT IGNORE INTO job_definitions (
+INSERT INTO job_definitions (
     job_code, 
     job_name, 
     description, 
@@ -226,10 +222,11 @@ INSERT IGNORE INTO job_definitions (
     1,
     'system',
     'system'
-);
+)
+ON CONFLICT (job_code) DO NOTHING;
 
 -- 부동산 아파트 Job에 대한 파라미터 설정 추가
-INSERT IGNORE INTO job_parameter_configs (
+INSERT INTO job_parameter_configs (
     job_definition_id,
     parameter_name,
     value_source_type,
@@ -256,7 +253,7 @@ INSERT IGNORE INTO job_parameter_configs (
  2);
 
 -- 업종별 통계 데이터 수집을 위한 샘플 Job 정의 추가
-INSERT IGNORE INTO job_definitions (
+INSERT INTO job_definitions (
     job_code, 
     job_name, 
     description, 
@@ -286,10 +283,11 @@ INSERT IGNORE INTO job_definitions (
     2,
     'system',
     'system'
-);
+)
+ON CONFLICT (job_code) DO NOTHING;
 
 -- 업종별 통계 Job에 대한 파라미터 설정 추가
-INSERT IGNORE INTO job_parameter_configs (
+INSERT INTO job_parameter_configs (
     job_definition_id,
     parameter_name,
     value_source_type,
