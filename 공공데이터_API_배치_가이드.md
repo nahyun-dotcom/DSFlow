@@ -51,8 +51,8 @@
 {
   "parameterName": "LAWD_CD",
   "valueSourceType": "DB_QUERY",
-  "valueSource": "SELECT lawd_cd FROM region_codes WHERE is_active = true ORDER BY lawd_cd",
-  "description": "법정동코드 - 활성화된 모든 지역",
+  "valueSource": "CODE_CATEGORY:REGION",
+  "description": "법정동코드 - 새로운 유연한 코드 시스템에서 지역 카테고리",
   "sortOrder": 1
 }
 ```
@@ -124,50 +124,55 @@ curl -X GET "http://localhost:8080/api/job-parameter-configs?jobDefinitionId=1"
 
 **설정**:
 - parameterType: `MATRIX`
-- 지역코드: DB에서 250개 지역 조회
+- 지역코드: `CODE_CATEGORY:REGION` (새로운 코드 시스템에서 15개 지역)
 - 계약연월: 최근 12개월
 - batchSize: `20`
 - delaySeconds: `1`
 
-**결과**: 250개 지역 × 12개월 = 3,000개 API 호출
-**소요시간**: (3,000 ÷ 20) × 1초 = 150초
+**결과**: 15개 지역 × 12개월 = 180개 API 호출
+**소요시간**: (180 ÷ 20) × 1초 = 9초
 
 ### 시나리오 2: 업종별 사업체 통계 수집
 
 **설정**:
 - parameterType: `MULTI_PARAM`
-- 업종코드: 정적 목록 21개 (A~U)
+- 업종코드: `CODE_CATEGORY:INDUSTRY` (새로운 코드 시스템에서 10개 업종)
 - batchSize: `5`
 - delaySeconds: `2`
 
-**결과**: 21개 업종코드에 대해 순차 API 호출
-**소요시간**: (21 ÷ 5) × 2초 = 8.4초
+**결과**: 10개 업종코드에 대해 순차 API 호출
+**소요시간**: (10 ÷ 5) × 2초 = 4초
 
 ### 시나리오 3: 다차원 통계 데이터 수집
 
 **설정**:
 - parameterType: `MATRIX`
-- 지역코드: 17개 시도
-- 업종코드: 21개 대분류
-- 기간코드: 4개 분기
+- 지역코드: `CODE_CATEGORY:REGION` (15개 지역)
+- 업종코드: `CODE_CATEGORY:INDUSTRY` (10개 업종)
+- 사업체유형: `CODE_CATEGORY:BUSINESS_TYPE` (4개 유형)
 - batchSize: `10`
 - delaySeconds: `1`
 
-**결과**: 17 × 21 × 4 = 1,428개 API 호출
-**소요시간**: (1,428 ÷ 10) × 1초 = 142.8초
+**결과**: 15 × 10 × 4 = 600개 API 호출
+**소요시간**: (600 ÷ 10) × 1초 = 60초
 
 ## 값 소스 타입별 상세 설정
 
 ### DB_QUERY
 ```sql
--- 활성화된 지역코드 조회
-SELECT lawd_cd FROM region_codes WHERE is_active = true ORDER BY lawd_cd
+-- 🆕 새로운 유연한 코드 시스템 (권장)
+CODE_CATEGORY:REGION         -- 지역코드
+CODE_CATEGORY:INDUSTRY       -- 업종코드  
+CODE_CATEGORY:BUSINESS_TYPE  -- 사업체유형
+CODE_CATEGORY:VEHICLE_TYPE   -- 차량유형
 
--- 특정 레벨의 업종코드 조회
-SELECT code FROM industry_codes WHERE level = 1 AND is_active = true
+-- 🔧 Legacy SQL 쿼리 (하위 호환성)
+SELECT code_value FROM code_values cv 
+JOIN code_categories cc ON cv.category_id = cc.id 
+WHERE cc.category_code = 'REGION' AND cv.is_active = true
 
--- 최근 등록된 기관코드 조회
-SELECT org_code FROM organization_codes WHERE created_at >= DATE_SUB(NOW(), INTERVAL 1 YEAR)
+-- 커스텀 테이블 쿼리
+SELECT org_code FROM custom_organization_codes WHERE created_at >= NOW() - INTERVAL '1 year'
 ```
 
 ### STATIC_LIST

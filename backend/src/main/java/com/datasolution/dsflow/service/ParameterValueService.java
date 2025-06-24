@@ -23,6 +23,7 @@ import java.util.Map;
 public class ParameterValueService {
 
     private final JdbcTemplate jdbcTemplate;
+    private final CodeManagementService codeManagementService;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final WebClient webClient = WebClient.builder().build();
 
@@ -61,9 +62,17 @@ public class ParameterValueService {
 
     /**
      * 데이터베이스 쿼리에서 값 목록 생성
+     * 특별한 경우: 'CODE_CATEGORY:카테고리코드' 형식으로 시작하면 새로운 코드 시스템 사용
      */
     private List<String> generateFromDbQuery(String query) {
         try {
+            // 새로운 코드 시스템 사용 체크
+            if (query.startsWith("CODE_CATEGORY:")) {
+                String categoryCode = query.substring("CODE_CATEGORY:".length());
+                return codeManagementService.getCodeValuesByCategory(categoryCode);
+            }
+            
+            // 기존 SQL 쿼리 방식
             return jdbcTemplate.queryForList(query, String.class);
         } catch (Exception e) {
             log.error("DB 쿼리 실행 실패: {}", e.getMessage());

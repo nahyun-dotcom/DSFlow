@@ -456,7 +456,12 @@ const JobForm: React.FC = () => {
         <div style={{ marginTop: 16, fontSize: '12px', color: '#666' }}>
           <strong>샘플 값 소스:</strong>
           <pre style={{ fontSize: '11px', marginTop: 8 }}>
-{`DB_QUERY: SELECT lawd_cd FROM region_codes WHERE is_active = true
+{`NEW CODE SYSTEM: CODE_CATEGORY:REGION (지역코드)
+NEW CODE SYSTEM: CODE_CATEGORY:INDUSTRY (업종코드)
+NEW CODE SYSTEM: CODE_CATEGORY:BUSINESS_TYPE (사업체유형)
+NEW CODE SYSTEM: CODE_CATEGORY:VEHICLE_TYPE (차량유형)
+
+LEGACY SQL: SELECT code FROM custom_table WHERE active = true
 
 STATIC_LIST: ["202401", "202402", "202403", "202404"]
 

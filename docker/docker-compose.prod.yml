@@ -1,0 +1,44 @@
+services:
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: dsflow-backend
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      # 외부 PostgreSQL 서버 설정
+      DB_HOST: ${DB_HOST:-your-postgres-server.com}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_NAME: ${DB_NAME:-dsflow}
+      DB_USERNAME: ${DB_USERNAME:-dsflow}
+      DB_PASSWORD: ${DB_PASSWORD:-your-secure-password}
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
+    ports:
+      - "8080:8080"
+    networks:
+      - dsflow-network
+    restart: unless-stopped
+    # PostgreSQL 컨테이너 의존성 제거
+    # depends_on:
+    #   - postgres
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    container_name: dsflow-frontend
+    ports:
+      - "80:80"  # 운영에서는 80 포트 사용
+    depends_on:
+      - backend
+    networks:
+      - dsflow-network
+    restart: unless-stopped
+
+networks:
+  dsflow-network:
+    driver: bridge
+
+# 운영환경에서는 PostgreSQL 컨테이너와 볼륨 제거
+# volumes:
+#   postgres_data: 
