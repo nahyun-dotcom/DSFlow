@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard'
 import JobList from './pages/JobList'
 import JobForm from './pages/JobForm'
 import LogList from './pages/LogList'
+import CodeSync from './pages/CodeSync'
 import NotFound from './pages/NotFound'
 
 const { Content } = Layout
@@ -33,6 +34,7 @@ function App() {
               <Route path="/jobs/new" element={<JobForm />} />
               <Route path="/jobs/:jobCode/edit" element={<JobForm />} />
               <Route path="/logs" element={<LogList />} />
+              <Route path="/code-sync" element={<CodeSync />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Content>

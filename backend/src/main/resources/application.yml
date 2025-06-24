@@ -18,7 +18,7 @@ spring:
   
   jpa:
     hibernate:
-      ddl-auto: create
+      ddl-auto: create-drop
     show-sql: true
     properties:
       hibernate:
@@ -77,13 +77,13 @@ spring:
     activate:
       on-profile: prod
   datasource:
-    url: jdbc:postgresql://localhost:5432/dsflow
+    url: jdbc:postgresql://postgres:5432/dsflow
     driver-class-name: org.postgresql.Driver
     username: ${DB_USERNAME:dsflow}
     password: ${DB_PASSWORD:password}
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: update
     show-sql: false
     database-platform: org.hibernate.dialect.PostgreSQLDialect
 

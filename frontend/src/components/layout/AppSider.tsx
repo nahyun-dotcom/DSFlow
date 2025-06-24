@@ -5,6 +5,7 @@ import {
   DashboardOutlined,
   SettingOutlined,
   FileTextOutlined,
+  CloudSyncOutlined,
   PlayCircleOutlined
 } from '@ant-design/icons'
 
@@ -29,6 +30,11 @@ const AppSider: React.FC = () => {
       key: '/logs',
       icon: <FileTextOutlined />,
       label: '실행 로그',
+    },
+    {
+      key: '/code-sync',
+      icon: <CloudSyncOutlined />,
+      label: '코드 동기화',
     },
   ]
 

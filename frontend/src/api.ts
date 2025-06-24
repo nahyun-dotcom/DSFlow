@@ -28,6 +28,8 @@ api.interceptors.response.use((response) => {
   return Promise.reject(error)
 })
 
+export { api }
+
 export const createJob = (job: any) => api.post('/jobs', job)
 export const getJobs = () => api.get('/jobs')
 export const getJob = (jobCode: string) => api.get(`/jobs/${jobCode}`)

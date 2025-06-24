@@ -329,13 +329,187 @@ INSERT INTO job_parameter_configs (
     is_active,
     sort_order
 ) VALUES 
--- 업종코드 파라미터 (정적 목록)
+-- 업종코드 파라미터 (새로운 코드 시스템 사용)
 ((SELECT id FROM job_definitions WHERE job_code = 'BUSINESS_STATISTICS_BY_INDUSTRY'),
  'INDUSTRY_CD',
- 'STATIC_LIST',
- '["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U"]',
- '한국표준산업분류 대분류 코드',
+ 'DB_QUERY',
+ 'CODE_CATEGORY:INDUSTRY',
+ '한국표준산업분류 대분류 코드 - 새로운 코드 시스템',
  TRUE,
  1);
+
+-- =================================================================
+-- 🚀 코드 데이터 자동 수집을 위한 Job 정의들
+-- =================================================================
+
+-- 1. 지역코드 자동 수집 Job
+INSERT INTO job_definitions (
+    job_code, 
+    job_name, 
+    description, 
+    method_type, 
+    resource_url, 
+    parameters, 
+    cron_expression, 
+    resource_weight, 
+    status,
+    parameter_type,
+    batch_size,
+    delay_seconds,
+    created_by, 
+    updated_by
+) VALUES (
+    'REGION_CODE_SYNC',
+    '지역코드 자동 동기화',
+    '행정표준코드관리시스템에서 최신 지역코드를 주기적으로 수집하여 코드 테이블 업데이트',
+    'API_GET',
+    'https://www.code.go.kr/api/getCodeListAll.do',
+    '{"codeId":"법정동코드","format":"json"}',
+    '0 30 1 * * ?',
+    1,
+    'ACTIVE',
+    'SINGLE',
+    1,
+    0,
+    'system',
+    'system'
+),
+-- 2. 업종코드 자동 수집 Job  
+(
+    'INDUSTRY_CODE_SYNC',
+    '업종코드 자동 동기화',
+    '통계청 KOSIS API에서 최신 업종분류 코드를 주기적으로 수집하여 코드 테이블 업데이트',
+    'API_GET',
+    'https://kosis.kr/openapi/Param/statisticsParameterData.do',
+    '{"method":"getList","format":"json","jsonVD":"Y","userStatsId":"업종분류"}',
+    '0 45 1 * * ?',
+    1,
+    'ACTIVE',
+    'SINGLE',
+    1,
+    0,
+    'system',
+    'system'
+),
+-- 3. 차량유형 코드 수집 Job
+(
+    'VEHICLE_TYPE_SYNC',
+    '차량유형 코드 동기화',
+    '교통안전공단 API에서 차량 분류 코드를 수집하여 코드 테이블 업데이트',
+    'API_GET',
+    'https://www.kotsa.or.kr/api/vehicle/types',
+    '{"format":"json","category":"all"}',
+    '0 0 2 1 * ?',
+    1,
+    'ACTIVE',
+    'SINGLE',
+    1,
+    0,
+    'system',
+    'system'
+),
+-- 4. 코드 품질 검증 Job
+(
+    'CODE_QUALITY_CHECK',
+    '코드 데이터 품질 검증',
+    '모든 코드 카테고리의 데이터 품질을 검증하고 이상 데이터 알림',
+    'INTERNAL',
+    '/api/codes/sync/validate/all',
+    '{}',
+    '0 0 6 * * ?',
+    1,
+    'ACTIVE',
+    'SINGLE',
+    1,
+    0,
+    'system',
+    'system'
+)
+ON CONFLICT (job_code) DO NOTHING;
+
+-- =================================================================
+-- 🚀 사용자 정의 코드 동기화 작업 테이블
+-- =================================================================
+
+CREATE TABLE IF NOT EXISTS code_sync_jobs (
+    id BIGSERIAL PRIMARY KEY,
+    sync_job_code VARCHAR(100) NOT NULL UNIQUE,
+    sync_job_name VARCHAR(200) NOT NULL,
+    target_category_code VARCHAR(100) NOT NULL,
+    api_url VARCHAR(1000) NOT NULL,
+    http_method VARCHAR(50) DEFAULT 'GET',
+    request_headers TEXT,
+    request_parameters TEXT,
+    request_body TEXT,
+    code_value_json_path VARCHAR(200) NOT NULL,
+    code_name_json_path VARCHAR(200) NOT NULL,
+    metadata_json_path VARCHAR(200),
+    parent_code_json_path VARCHAR(200),
+    cron_expression VARCHAR(100),
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    auto_sync BOOLEAN NOT NULL DEFAULT TRUE,
+    timeout_seconds INTEGER NOT NULL DEFAULT 30,
+    retry_count INTEGER NOT NULL DEFAULT 3,
+    description TEXT,
+    last_sync_result VARCHAR(500),
+    last_sync_time TIMESTAMP,
+    last_sync_count INTEGER,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_by VARCHAR(100),
+    updated_by VARCHAR(100),
+    category_id BIGINT,
+    FOREIGN KEY (category_id) REFERENCES code_categories(id) ON DELETE SET NULL
+);
+
+-- 인덱스 생성
+CREATE INDEX IF NOT EXISTS idx_code_sync_jobs_target_category ON code_sync_jobs(target_category_code);
+CREATE INDEX IF NOT EXISTS idx_code_sync_jobs_auto_sync ON code_sync_jobs(auto_sync, is_active);
+CREATE INDEX IF NOT EXISTS idx_code_sync_jobs_last_sync ON code_sync_jobs(last_sync_time);
+
+-- 샘플 사용자 정의 동기화 작업 예시
+INSERT INTO code_sync_jobs (
+    sync_job_code,
+    sync_job_name,
+    target_category_code,
+    api_url,
+    http_method,
+    request_parameters,
+    code_value_json_path,
+    code_name_json_path,
+    metadata_json_path,
+    cron_expression,
+    description,
+    created_by
+) VALUES 
+(
+    'SAMPLE_GOVERNMENT_CODES',
+    '정부기관 코드 동기화',
+    'GOVERNMENT',
+    'https://api.example.gov.kr/orgcodes',
+    'GET',
+    '{"format":"json","type":"all"}',
+    '$.code',
+    '$.name',
+    '$.metadata',
+    '0 0 1 * * ?',
+    '정부기관 조직 코드를 외부 API에서 자동 수집하는 예시',
+    'system'
+),
+(
+    'SAMPLE_EDUCATION_CODES',
+    '교육기관 코드 동기화',
+    'EDUCATION',
+    'https://api.education.go.kr/schools',
+    'GET',
+    '{"format":"json","level":"all"}',
+    '$.schoolCode',
+    '$.schoolName',
+    '$.detail',
+    '0 30 2 * * ?',
+    '교육기관 코드를 외부 교육부 API에서 수집하는 예시',
+    'system'
+)
+ON CONFLICT (sync_job_code) DO NOTHING;
 
 COMMIT; 
