@@ -1,0 +1,93 @@
+spring:
+  application:
+    name: dsflow
+  
+  profiles:
+    active: local
+  
+  datasource:
+    url: jdbc:h2:mem:dsflow;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: 
+  
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+  
+  jpa:
+    hibernate:
+      ddl-auto: create
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+    database-platform: org.hibernate.dialect.H2Dialect
+  
+  batch:
+    jdbc:
+      initialize-schema: always
+    job:
+      enabled: false  # 자동 실행 방지
+  
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    default-property-inclusion: non_null
+
+server:
+  port: 8080
+  servlet:
+    context-path: /api
+
+logging:
+  level:
+    org.springframework.batch: DEBUG
+    com.datasolution.dsflow: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: method
+
+dsflow:
+  slack:
+    webhook-url: ${SLACK_WEBHOOK_URL:}
+  scheduler:
+    enabled: true
+    pool-size: 5
+
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+  datasource:
+    url: jdbc:postgresql://localhost:5432/dsflow
+    driver-class-name: org.postgresql.Driver
+    username: ${DB_USERNAME:dsflow}
+    password: ${DB_PASSWORD:password}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+
+logging:
+  level:
+    root: INFO
+    com.datasolution.dsflow: INFO 

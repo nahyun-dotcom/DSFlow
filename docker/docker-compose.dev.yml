@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  frontend-dev:
+    image: node:18-alpine
+    container_name: dsflow-frontend-dev
+    working_dir: /app
+    volumes:
+      - ../frontend:/app
+      - /app/node_modules
+    ports:
+      - "3000:3000"
+    command: sh -c "npm install && npm run dev -- --host"
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+    restart: unless-stopped
+    networks:
+      - dsflow-network
+
+  backend-dev:
+    image: eclipse-temurin:17-jdk
+    container_name: dsflow-backend-dev
+    working_dir: /app
+    volumes:
+      - ../backend:/app
+      - ~/.m2:/root/.m2
+    ports:
+      - "8080:8080"
+    command: sh -c "./mvnw spring-boot:run"
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+    restart: unless-stopped
+    depends_on:
+      - postgres
+    networks:
+      - dsflow-network
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: dsflow-postgres
+    environment:
+      POSTGRES_DB: dsflow
+      POSTGRES_USER: dsflow
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - dsflow-network
+
+networks:
+  dsflow-network:
+    driver: bridge
+
+volumes:
+  postgres_data: 
