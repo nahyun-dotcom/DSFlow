@@ -1,5 +1,6 @@
 package com.datasolution.dsflow.entity;
 
+import com.datasolution.dsflow.entity.enums.JobParameterType;
 import com.datasolution.dsflow.entity.enums.JobStatus;
 import com.datasolution.dsflow.entity.enums.MethodType;
 import jakarta.persistence.*;
@@ -54,6 +55,27 @@ public class JobDefinition {
     @Column(nullable = false)
     @Builder.Default
     private JobStatus status = JobStatus.ACTIVE;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    @Builder.Default
+    private JobParameterType parameterType = JobParameterType.SINGLE;
+
+    @Column(name = "batch_size")
+    @Builder.Default
+    private Integer batchSize = 1;
+
+    @Column(name = "delay_seconds")
+    @Builder.Default
+    private Integer delaySeconds = 0;
+
+    @Column(name = "use_region_codes")
+    @Builder.Default
+    private Boolean useRegionCodes = false;
+
+    @Column(name = "date_range_months")
+    @Builder.Default
+    private Integer dateRangeMonths = 1;
 
     @CreationTimestamp
     @Column(nullable = false, updatable = false)

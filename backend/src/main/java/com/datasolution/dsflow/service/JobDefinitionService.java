@@ -171,4 +171,16 @@ public class JobDefinitionService {
                 .updatedBy(job.getUpdatedBy())
                 .build();
     }
+
+    public JobDefinitionDto getJobDefinition(Long id) {
+        JobDefinition jobDefinition = jobDefinitionRepository.findById(id)
+                .orElseThrow(() -> new BusinessException("Job 정의를 찾을 수 없습니다: " + id));
+        
+        return convertToDto(jobDefinition);
+    }
+
+    public JobDefinition findByJobCode(String jobCode) {
+        return jobDefinitionRepository.findByJobCode(jobCode)
+                .orElseThrow(() -> new BusinessException("Job 정의를 찾을 수 없습니다: " + jobCode));
+    }
 } 
