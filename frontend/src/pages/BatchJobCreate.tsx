@@ -1,9 +1,19 @@
 import React, { useState } from 'react';
-import { Form, Input, Select, InputNumber, Switch, Button, Card, message, Space, Divider } from 'antd';
-import { SaveOutlined, ReloadOutlined } from '@ant-design/icons';
+import { Form, Input, Select, InputNumber, Button, Card, message, Space, Divider, Table, Modal } from 'antd';
+import { SaveOutlined, ReloadOutlined, PlusOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons';
 
 const { Option } = Select;
 const { TextArea } = Input;
+
+interface ParameterConfig {
+  id?: number;
+  parameterName: string;
+  valueSourceType: string;
+  valueSource: string;
+  description: string;
+  isActive: boolean;
+  sortOrder: number;
+}
 
 interface BatchJobCreateProps {}
 
@@ -11,14 +21,22 @@ const BatchJobCreate: React.FC<BatchJobCreateProps> = () => {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [parameterType, setParameterType] = useState<string>('SINGLE');
+  const [parameterConfigs, setParameterConfigs] = useState<ParameterConfig[]>([]);
+  const [parameterModalVisible, setParameterModalVisible] = useState(false);
+  const [editingParameter, setEditingParameter] = useState<ParameterConfig | null>(null);
+  const [parameterForm] = Form.useForm();
 
   const handleSubmit = async (values: any) => {
     setLoading(true);
     try {
-      // API 호출 로직
-      console.log('Job 생성 요청:', values);
+      const jobData = {
+        ...values,
+        parameterConfigs: parameterConfigs
+      };
+      console.log('Job 생성 요청:', jobData);
       message.success('배치 작업이 성공적으로 생성되었습니다.');
       form.resetFields();
+      setParameterConfigs([]);
     } catch (error) {
       message.error('배치 작업 생성에 실패했습니다.');
     } finally {
@@ -28,38 +46,144 @@ const BatchJobCreate: React.FC<BatchJobCreateProps> = () => {
 
   const handleReset = () => {
     form.resetFields();
+    setParameterConfigs([]);
   };
 
   const getParameterTypeDescription = (type: string) => {
     switch (type) {
       case 'SINGLE':
         return '단일 파라미터로 API를 1회 호출합니다.';
-      case 'MULTI_REGION':
-        return '활성화된 모든 지역코드에 대해 API를 호출합니다.';
-      case 'MULTI_DATE':
-        return '지정된 월 범위에 대해 날짜별로 API를 호출합니다.';
+      case 'MULTI_PARAM':
+        return '첫 번째 파라미터의 여러 값들에 대해 순차적으로 API를 호출합니다.';
       case 'MATRIX':
-        return '지역코드 × 날짜 조합으로 매트릭스 형태의 API 호출을 수행합니다.';
+        return '모든 파라미터들의 조합(데카르트 곱)으로 API를 호출합니다.';
       default:
         return '';
     }
   };
 
-  const sampleUrls = {
-    apartment: 'http://openapi.molit.go.kr/OpenAPI_ToolInstallPackage/service/rest/RTMSOBJSvc/getRTMSDataSvcAptTradeDev',
-    officetel: 'http://openapi.molit.go.kr/OpenAPI_ToolInstallPackage/service/rest/RTMSOBJSvc/getRTMSDataSvcOffiTrade',
-    house: 'http://openapi.molit.go.kr/OpenAPI_ToolInstallPackage/service/rest/RTMSOBJSvc/getRTMSDataSvcSHTrade'
+  const handleAddParameter = () => {
+    setEditingParameter(null);
+    parameterForm.resetFields();
+    setParameterModalVisible(true);
   };
 
-  const sampleParameters = {
-    realestate: '{"serviceKey":"YOUR_SERVICE_KEY","numOfRows":"1000","pageNo":"1"}',
-    weather: '{"serviceKey":"YOUR_SERVICE_KEY","base_date":"20231201","base_time":"0500","nx":"55","ny":"127"}',
-    traffic: '{"serviceKey":"YOUR_SERVICE_KEY","type":"xml","numOfRows":"10","pageNo":"1"}'
+  const handleEditParameter = (parameter: ParameterConfig) => {
+    setEditingParameter(parameter);
+    parameterForm.setFieldsValue(parameter);
+    setParameterModalVisible(true);
+  };
+
+  const handleDeleteParameter = (index: number) => {
+    const newConfigs = parameterConfigs.filter((_, i) => i !== index);
+    setParameterConfigs(newConfigs);
+    message.success('파라미터가 삭제되었습니다.');
+  };
+
+  const handleParameterModalOk = () => {
+    parameterForm.validateFields().then(values => {
+      if (editingParameter) {
+        // 수정
+        const newConfigs = parameterConfigs.map(config => 
+          config === editingParameter ? { ...values } : config
+        );
+        setParameterConfigs(newConfigs);
+        message.success('파라미터가 수정되었습니다.');
+      } else {
+        // 추가
+        const newConfig: ParameterConfig = {
+          ...values,
+          sortOrder: parameterConfigs.length + 1
+        };
+        setParameterConfigs([...parameterConfigs, newConfig]);
+        message.success('파라미터가 추가되었습니다.');
+      }
+      setParameterModalVisible(false);
+      parameterForm.resetFields();
+    });
+  };
+
+  const parameterColumns = [
+    {
+      title: '순서',
+      dataIndex: 'sortOrder',
+      key: 'sortOrder',
+      width: 60,
+    },
+    {
+      title: '파라미터명',
+      dataIndex: 'parameterName',
+      key: 'parameterName',
+    },
+    {
+      title: '값 소스 타입',
+      dataIndex: 'valueSourceType',
+      key: 'valueSourceType',
+      render: (type: string) => {
+        const typeLabels: { [key: string]: string } = {
+          'DB_QUERY': 'DB 쿼리',
+          'STATIC_LIST': '정적 목록',
+          'DATE_RANGE': '날짜 범위',
+          'API_CALL': 'API 호출',
+          'FILE_LIST': '파일 목록'
+        };
+        return typeLabels[type] || type;
+      }
+    },
+    {
+      title: '설명',
+      dataIndex: 'description',
+      key: 'description',
+    },
+    {
+      title: '활성화',
+      dataIndex: 'isActive',
+      key: 'isActive',
+      render: (active: boolean) => active ? '✅' : '❌'
+    },
+    {
+      title: '작업',
+      key: 'actions',
+      width: 120,
+      render: (_: any, record: ParameterConfig, index: number) => (
+        <Space>
+          <Button 
+            size="small" 
+            icon={<EditOutlined />} 
+            onClick={() => handleEditParameter(record)}
+          />
+          <Button 
+            size="small" 
+            danger 
+            icon={<DeleteOutlined />} 
+            onClick={() => handleDeleteParameter(index)}
+          />
+        </Space>
+      ),
+    },
+  ];
+
+  const sampleValueSources = {
+    DB_QUERY: {
+      regionCodes: 'SELECT lawd_cd FROM region_codes WHERE is_active = true ORDER BY lawd_cd',
+      industries: 'SELECT code FROM industry_codes WHERE level = 1 ORDER BY code'
+    },
+    STATIC_LIST: {
+      months: '["202401", "202402", "202403", "202404", "202405", "202406"]',
+      categories: '["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"]'
+    },
+    DATE_RANGE: {
+      monthly: '{"startDate":"2024-01-01","endDate":"2024-06-01","format":"yyyyMM","interval":"MONTH"}',
+      daily: '{"startDate":"2024-01-01","endDate":"2024-01-31","format":"yyyyMMdd","interval":"DAY"}'
+    },
+    API_CALL: {
+      sample: '{"url":"https://api.example.com/codes","method":"GET","jsonPath":"data.codes[]"}'
+    }
   };
 
   return (
     <div style={{ padding: '24px' }}>
-      <Card title="공공데이터 API 배치 작업 생성">
+      <Card title="유연한 다중 파라미터 배치 작업 생성">
         <Form
           form={form}
           layout="vertical"
@@ -70,8 +194,6 @@ const BatchJobCreate: React.FC<BatchJobCreateProps> = () => {
             parameterType: 'SINGLE',
             batchSize: 1,
             delaySeconds: 0,
-            useRegionCodes: false,
-            dateRangeMonths: 1,
             status: 'ACTIVE'
           }}
         >
@@ -85,7 +207,7 @@ const BatchJobCreate: React.FC<BatchJobCreateProps> = () => {
                 { pattern: /^[A-Z0-9_]+$/, message: '대문자, 숫자, 언더스코어만 사용 가능합니다.' }
               ]}
             >
-              <Input placeholder="예: REAL_ESTATE_APARTMENT_TRADE" />
+              <Input placeholder="예: FLEXIBLE_API_JOB" />
             </Form.Item>
 
             <Form.Item
@@ -93,7 +215,7 @@ const BatchJobCreate: React.FC<BatchJobCreateProps> = () => {
               name="jobName"
               rules={[{ required: true, message: 'Job 명을 입력해주세요.' }]}
             >
-              <Input placeholder="예: 아파트 실거래가 데이터 수집" />
+              <Input placeholder="예: 유연한 다중 파라미터 API 데이터 수집" />
             </Form.Item>
 
             <Form.Item label="설명" name="description">
@@ -122,21 +244,7 @@ const BatchJobCreate: React.FC<BatchJobCreateProps> = () => {
               name="resourceUrl"
               rules={[{ required: true, message: 'API URL을 입력해주세요.' }]}
             >
-              <Input.Group compact>
-                <Input
-                  style={{ width: 'calc(100% - 200px)' }}
-                  placeholder="API 엔드포인트 URL을 입력해주세요."
-                />
-                <Select 
-                  style={{ width: 200 }} 
-                  placeholder="샘플 선택"
-                  onChange={(value) => form.setFieldsValue({ resourceUrl: value })}
-                >
-                  <Option value={sampleUrls.apartment}>아파트 실거래가</Option>
-                  <Option value={sampleUrls.officetel}>오피스텔 실거래가</Option>
-                  <Option value={sampleUrls.house}>단독/연립 실거래가</Option>
-                </Select>
-              </Input.Group>
+              <Input placeholder="API 엔드포인트 URL을 입력해주세요." />
             </Form.Item>
 
             <Form.Item
@@ -144,27 +252,15 @@ const BatchJobCreate: React.FC<BatchJobCreateProps> = () => {
               name="parameters"
               rules={[{ required: true, message: '기본 파라미터를 입력해주세요.' }]}
             >
-              <Input.Group compact>
-                <TextArea
-                  style={{ width: 'calc(100% - 200px)' }}
-                  rows={4}
-                  placeholder='{"serviceKey":"YOUR_API_KEY","numOfRows":"1000"}'
-                />
-                <Select 
-                  style={{ width: 200 }} 
-                  placeholder="샘플 선택"
-                  onChange={(value) => form.setFieldsValue({ parameters: value })}
-                >
-                  <Option value={sampleParameters.realestate}>부동산 API</Option>
-                  <Option value={sampleParameters.weather}>기상청 API</Option>
-                  <Option value={sampleParameters.traffic}>교통정보 API</Option>
-                </Select>
-              </Input.Group>
+              <TextArea
+                rows={4}
+                placeholder='{"serviceKey":"YOUR_API_KEY","numOfRows":"1000"}'
+              />
             </Form.Item>
           </Card>
 
-          {/* 다중 파라미터 설정 */}
-          <Card size="small" title="다중 파라미터 설정" style={{ marginBottom: 16 }}>
+          {/* 파라미터 타입 설정 */}
+          <Card size="small" title="파라미터 타입 설정" style={{ marginBottom: 16 }}>
             <Form.Item
               label="파라미터 타입"
               name="parameterType"
@@ -172,9 +268,8 @@ const BatchJobCreate: React.FC<BatchJobCreateProps> = () => {
             >
               <Select onChange={setParameterType}>
                 <Option value="SINGLE">단일 파라미터</Option>
-                <Option value="MULTI_REGION">다중 지역코드</Option>
-                <Option value="MULTI_DATE">다중 날짜</Option>
-                <Option value="MATRIX">지역코드 × 날짜 매트릭스</Option>
+                <Option value="MULTI_PARAM">다중 파라미터 (순차)</Option>
+                <Option value="MATRIX">매트릭스 파라미터 (조합)</Option>
               </Select>
             </Form.Item>
 
@@ -213,28 +308,31 @@ const BatchJobCreate: React.FC<BatchJobCreateProps> = () => {
                 </Form.Item>
               </>
             )}
-
-            {(parameterType === 'MULTI_REGION' || parameterType === 'MATRIX') && (
-              <Form.Item label="지역코드 사용" name="useRegionCodes" valuePropName="checked">
-                <Switch />
-              </Form.Item>
-            )}
-
-            {(parameterType === 'MULTI_DATE' || parameterType === 'MATRIX') && (
-              <Form.Item
-                label="처리할 월 범위"
-                name="dateRangeMonths"
-                rules={[{ required: true, message: '월 범위를 입력해주세요.' }]}
-              >
-                <InputNumber
-                  min={1}
-                  max={24}
-                  style={{ width: '100%' }}
-                  placeholder="현재 기준 과거 몇 개월까지 처리할지 설정"
-                />
-              </Form.Item>
-            )}
           </Card>
+
+          {/* 파라미터 설정 */}
+          {parameterType !== 'SINGLE' && (
+            <Card size="small" title="파라미터 설정" style={{ marginBottom: 16 }}>
+              <div style={{ marginBottom: 16 }}>
+                <Button 
+                  type="primary" 
+                  icon={<PlusOutlined />} 
+                  onClick={handleAddParameter}
+                >
+                  파라미터 추가
+                </Button>
+              </div>
+              
+              <Table
+                dataSource={parameterConfigs}
+                columns={parameterColumns}
+                rowKey={(record, index) => index?.toString() || '0'}
+                pagination={false}
+                size="small"
+                locale={{ emptyText: '파라미터를 추가해주세요.' }}
+              />
+            </Card>
+          )}
 
           {/* 스케줄 및 기타 설정 */}
           <Card size="small" title="스케줄 및 기타 설정" style={{ marginBottom: 16 }}>
@@ -243,22 +341,7 @@ const BatchJobCreate: React.FC<BatchJobCreateProps> = () => {
               name="cronExpression"
               rules={[{ required: true, message: 'Cron 표현식을 입력해주세요.' }]}
             >
-              <Input.Group compact>
-                <Input
-                  style={{ width: 'calc(100% - 200px)' }}
-                  placeholder="예: 0 0 2 * * ? (매일 새벽 2시)"
-                />
-                <Select 
-                  style={{ width: 200 }} 
-                  placeholder="샘플 선택"
-                  onChange={(value) => form.setFieldsValue({ cronExpression: value })}
-                >
-                  <Option value="0 0 2 * * ?">매일 새벽 2시</Option>
-                  <Option value="0 30 2 * * ?">매일 새벽 2시 30분</Option>
-                  <Option value="0 0 3 * * ?">매일 새벽 3시</Option>
-                  <Option value="0 0 2 * * MON">매주 월요일 새벽 2시</Option>
-                </Select>
-              </Input.Group>
+              <Input placeholder="예: 0 0 2 * * ? (매일 새벽 2시)" />
             </Form.Item>
 
             <Form.Item
@@ -307,6 +390,74 @@ const BatchJobCreate: React.FC<BatchJobCreateProps> = () => {
           </Form.Item>
         </Form>
       </Card>
+
+      {/* 파라미터 설정 모달 */}
+      <Modal
+        title={editingParameter ? "파라미터 수정" : "파라미터 추가"}
+        open={parameterModalVisible}
+        onOk={handleParameterModalOk}
+        onCancel={() => setParameterModalVisible(false)}
+        width={600}
+      >
+        <Form
+          form={parameterForm}
+          layout="vertical"
+          initialValues={{
+            isActive: true,
+            valueSourceType: 'DB_QUERY'
+          }}
+        >
+          <Form.Item
+            label="파라미터명"
+            name="parameterName"
+            rules={[{ required: true, message: '파라미터명을 입력해주세요.' }]}
+          >
+            <Input placeholder="예: LAWD_CD, DEAL_YMD, CATEGORY_CD" />
+          </Form.Item>
+
+          <Form.Item
+            label="값 소스 타입"
+            name="valueSourceType"
+            rules={[{ required: true, message: '값 소스 타입을 선택해주세요.' }]}
+          >
+            <Select>
+              <Option value="DB_QUERY">DB 쿼리</Option>
+              <Option value="STATIC_LIST">정적 목록</Option>
+              <Option value="DATE_RANGE">날짜 범위</Option>
+              <Option value="API_CALL">API 호출</Option>
+              <Option value="FILE_LIST">파일 목록</Option>
+            </Select>
+          </Form.Item>
+
+          <Form.Item
+            label="값 소스"
+            name="valueSource"
+            rules={[{ required: true, message: '값 소스를 입력해주세요.' }]}
+          >
+            <TextArea
+              rows={4}
+              placeholder="값 소스 타입에 따른 설정을 입력해주세요."
+            />
+          </Form.Item>
+
+          <Form.Item label="설명" name="description">
+            <Input placeholder="파라미터에 대한 설명을 입력해주세요." />
+          </Form.Item>
+        </Form>
+
+        <div style={{ marginTop: 16, fontSize: '12px', color: '#666' }}>
+          <strong>샘플 값 소스:</strong>
+          <pre style={{ fontSize: '11px', marginTop: 8 }}>
+{`DB_QUERY: ${sampleValueSources.DB_QUERY.regionCodes}
+
+STATIC_LIST: ${sampleValueSources.STATIC_LIST.months}
+
+DATE_RANGE: ${sampleValueSources.DATE_RANGE.monthly}
+
+API_CALL: ${sampleValueSources.API_CALL.sample}`}
+          </pre>
+        </div>
+      </Modal>
     </div>
   );
 };

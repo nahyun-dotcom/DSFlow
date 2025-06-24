@@ -69,14 +69,6 @@ public class JobDefinition {
     @Builder.Default
     private Integer delaySeconds = 0;
 
-    @Column(name = "use_region_codes")
-    @Builder.Default
-    private Boolean useRegionCodes = false;
-
-    @Column(name = "date_range_months")
-    @Builder.Default
-    private Integer dateRangeMonths = 1;
-
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;

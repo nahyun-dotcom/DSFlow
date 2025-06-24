@@ -1,8 +1,9 @@
 package com.datasolution.dsflow.service;
 
 import com.datasolution.dsflow.entity.JobDefinition;
+import com.datasolution.dsflow.entity.JobParameterConfig;
 import com.datasolution.dsflow.entity.enums.JobParameterType;
-import com.datasolution.dsflow.repository.RegionCodeRepository;
+import com.datasolution.dsflow.repository.JobParameterConfigRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -11,9 +12,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -22,7 +22,8 @@ import java.util.Map;
 @Slf4j
 public class ParameterCombinationService {
 
-    private final RegionCodeRepository regionCodeRepository;
+    private final JobParameterConfigRepository parameterConfigRepository;
+    private final ParameterValueService parameterValueService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
@@ -39,16 +40,12 @@ public class ParameterCombinationService {
                     combinations.add(objectMapper.convertValue(baseParams, Map.class));
                     break;
 
-                case MULTI_REGION:
-                    combinations.addAll(generateRegionCombinations(baseParams));
-                    break;
-
-                case MULTI_DATE:
-                    combinations.addAll(generateDateCombinations(baseParams, jobDefinition.getDateRangeMonths()));
+                case MULTI_PARAM:
+                    combinations.addAll(generateMultiParameterCombinations(jobDefinition, baseParams));
                     break;
 
                 case MATRIX:
-                    combinations.addAll(generateMatrixCombinations(baseParams, jobDefinition.getDateRangeMonths()));
+                    combinations.addAll(generateMatrixCombinations(jobDefinition, baseParams));
                     break;
 
                 default:
@@ -66,15 +63,27 @@ public class ParameterCombinationService {
     }
 
     /**
-     * 지역코드별 파라미터 조합 생성
+     * 다중 파라미터 조합 생성 (각 파라미터별로 순차 처리)
      */
-    private List<Map<String, Object>> generateRegionCombinations(JsonNode baseParams) {
+    private List<Map<String, Object>> generateMultiParameterCombinations(JobDefinition jobDefinition, JsonNode baseParams) {
         List<Map<String, Object>> combinations = new ArrayList<>();
-        List<String> regionCodes = regionCodeRepository.findActiveLawdCdList();
+        
+        // Job에 설정된 파라미터 설정들 조회
+        List<JobParameterConfig> paramConfigs = parameterConfigRepository
+                .findByJobDefinitionIdAndIsActiveTrueOrderBySortOrder(jobDefinition.getId());
+        
+        if (paramConfigs.isEmpty()) {
+            log.warn("Job {}에 설정된 파라미터 설정이 없습니다.", jobDefinition.getJobCode());
+            return combinations;
+        }
 
-        for (String lawdCd : regionCodes) {
+        // 첫 번째 파라미터에 대해서만 여러 값 생성 (MULTI_PARAM는 하나의 파라미터만 변경)
+        JobParameterConfig firstParam = paramConfigs.get(0);
+        List<String> values = parameterValueService.generateParameterValues(firstParam);
+        
+        for (String value : values) {
             ObjectNode paramNode = baseParams.deepCopy();
-            paramNode.put("LAWD_CD", lawdCd);
+            paramNode.put(firstParam.getParameterName(), value);
             combinations.add(objectMapper.convertValue(paramNode, Map.class));
         }
 
@@ -82,45 +91,82 @@ public class ParameterCombinationService {
     }
 
     /**
-     * 날짜별 파라미터 조합 생성
+     * 매트릭스 파라미터 조합 생성 (모든 파라미터들의 데카르트 곱)
      */
-    private List<Map<String, Object>> generateDateCombinations(JsonNode baseParams, Integer months) {
+    private List<Map<String, Object>> generateMatrixCombinations(JobDefinition jobDefinition, JsonNode baseParams) {
         List<Map<String, Object>> combinations = new ArrayList<>();
-        LocalDate currentDate = LocalDate.now();
-
-        for (int i = 0; i < months; i++) {
-            LocalDate targetDate = currentDate.minusMonths(i);
-            String dealYmd = targetDate.format(DateTimeFormatter.ofPattern("yyyyMM"));
-
-            ObjectNode paramNode = baseParams.deepCopy();
-            paramNode.put("DEAL_YMD", dealYmd);
-            combinations.add(objectMapper.convertValue(paramNode, Map.class));
+        
+        // Job에 설정된 파라미터 설정들 조회
+        List<JobParameterConfig> paramConfigs = parameterConfigRepository
+                .findByJobDefinitionIdAndIsActiveTrueOrderBySortOrder(jobDefinition.getId());
+        
+        if (paramConfigs.isEmpty()) {
+            log.warn("Job {}에 설정된 파라미터 설정이 없습니다.", jobDefinition.getJobCode());
+            return combinations;
         }
+
+        // 각 파라미터별 값 목록 생성
+        Map<String, List<String>> parameterValues = new HashMap<>();
+        for (JobParameterConfig config : paramConfigs) {
+            List<String> values = parameterValueService.generateParameterValues(config);
+            parameterValues.put(config.getParameterName(), values);
+            log.info("파라미터 {} : {} 개 값 생성", config.getParameterName(), values.size());
+        }
+
+        // 데카르트 곱 생성
+        combinations = generateCartesianProduct(baseParams, parameterValues, paramConfigs);
 
         return combinations;
     }
 
     /**
-     * 지역코드 x 날짜 매트릭스 파라미터 조합 생성
+     * 데카르트 곱을 이용하여 모든 파라미터 조합 생성
      */
-    private List<Map<String, Object>> generateMatrixCombinations(JsonNode baseParams, Integer months) {
-        List<Map<String, Object>> combinations = new ArrayList<>();
-        List<String> regionCodes = regionCodeRepository.findActiveLawdCdList();
-        LocalDate currentDate = LocalDate.now();
+    private List<Map<String, Object>> generateCartesianProduct(JsonNode baseParams, 
+                                                              Map<String, List<String>> parameterValues,
+                                                              List<JobParameterConfig> paramConfigs) {
+        List<Map<String, Object>> result = new ArrayList<>();
+        
+        if (paramConfigs.isEmpty()) {
+            result.add(objectMapper.convertValue(baseParams, Map.class));
+            return result;
+        }
 
-        for (String lawdCd : regionCodes) {
-            for (int i = 0; i < months; i++) {
-                LocalDate targetDate = currentDate.minusMonths(i);
-                String dealYmd = targetDate.format(DateTimeFormatter.ofPattern("yyyyMM"));
+        generateCartesianProductRecursive(baseParams, parameterValues, paramConfigs, 0, 
+                                        new HashMap<>(), result);
+        
+        return result;
+    }
 
-                ObjectNode paramNode = baseParams.deepCopy();
-                paramNode.put("LAWD_CD", lawdCd);
-                paramNode.put("DEAL_YMD", dealYmd);
-                combinations.add(objectMapper.convertValue(paramNode, Map.class));
+    /**
+     * 재귀적으로 데카르트 곱 생성
+     */
+    private void generateCartesianProductRecursive(JsonNode baseParams,
+                                                 Map<String, List<String>> parameterValues,
+                                                 List<JobParameterConfig> paramConfigs,
+                                                 int paramIndex,
+                                                 Map<String, String> currentCombination,
+                                                 List<Map<String, Object>> result) {
+        
+        if (paramIndex >= paramConfigs.size()) {
+            // 모든 파라미터 조합 완성
+            ObjectNode paramNode = baseParams.deepCopy();
+            for (Map.Entry<String, String> entry : currentCombination.entrySet()) {
+                paramNode.put(entry.getKey(), entry.getValue());
             }
+            result.add(objectMapper.convertValue(paramNode, Map.class));
+            return;
         }
 
-        return combinations;
+        JobParameterConfig currentParam = paramConfigs.get(paramIndex);
+        List<String> values = parameterValues.get(currentParam.getParameterName());
+        
+        for (String value : values) {
+            currentCombination.put(currentParam.getParameterName(), value);
+            generateCartesianProductRecursive(baseParams, parameterValues, paramConfigs, 
+                                            paramIndex + 1, currentCombination, result);
+            currentCombination.remove(currentParam.getParameterName());
+        }
     }
 
     /**

@@ -33,9 +33,7 @@ CREATE TABLE IF NOT EXISTS job_definitions (
     updated_by VARCHAR(100),
     parameter_type VARCHAR(20) NOT NULL DEFAULT 'SINGLE',
     batch_size INT NOT NULL DEFAULT 1,
-    delay_seconds INT NOT NULL DEFAULT 0,
-    use_region_codes BOOLEAN NOT NULL DEFAULT FALSE,
-    date_range_months INT NOT NULL DEFAULT 1
+    delay_seconds INT NOT NULL DEFAULT 0
 );
 
 -- Create job_execution_logs table
@@ -120,6 +118,26 @@ CREATE TABLE IF NOT EXISTS region_codes (
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
+-- JobDefinition 테이블에서 특정 필드들 제거하고 일반적인 필드들만 유지
+ALTER TABLE job_definitions 
+DROP COLUMN IF EXISTS use_region_codes,
+DROP COLUMN IF EXISTS date_range_months;
+
+-- Job 파라미터 설정 테이블 생성
+CREATE TABLE IF NOT EXISTS job_parameter_configs (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    job_definition_id BIGINT NOT NULL,
+    parameter_name VARCHAR(50) NOT NULL,
+    value_source_type VARCHAR(20) NOT NULL,
+    value_source TEXT,
+    description VARCHAR(500),
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    sort_order INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (job_definition_id) REFERENCES job_definitions(id) ON DELETE CASCADE
+);
+
 -- 서울특별시 주요 구 지역코드 샘플 데이터 삽입
 INSERT IGNORE INTO region_codes (lawd_cd, region_name, sido_name, gugun_name, is_active) VALUES
 ('11110', '서울특별시 종로구', '서울특별시', '종로구', TRUE),
@@ -191,8 +209,6 @@ INSERT IGNORE INTO job_definitions (
     parameter_type,
     batch_size,
     delay_seconds,
-    use_region_codes,
-    date_range_months,
     created_by, 
     updated_by
 ) VALUES (
@@ -208,13 +224,38 @@ INSERT IGNORE INTO job_definitions (
     'MATRIX',
     10,
     1,
-    TRUE,
-    3,
     'system',
     'system'
 );
 
--- 오피스텔 실거래가 데이터 수집을 위한 샘플 Job 정의 추가
+-- 부동산 아파트 Job에 대한 파라미터 설정 추가
+INSERT IGNORE INTO job_parameter_configs (
+    job_definition_id,
+    parameter_name,
+    value_source_type,
+    value_source,
+    description,
+    is_active,
+    sort_order
+) VALUES 
+-- 지역코드 파라미터
+((SELECT id FROM job_definitions WHERE job_code = 'REAL_ESTATE_APARTMENT_TRADE'),
+ 'LAWD_CD',
+ 'DB_QUERY',
+ 'SELECT lawd_cd FROM region_codes WHERE is_active = true ORDER BY lawd_cd',
+ '법정동코드 - 활성화된 모든 지역',
+ TRUE,
+ 1),
+-- 계약연월 파라미터
+((SELECT id FROM job_definitions WHERE job_code = 'REAL_ESTATE_APARTMENT_TRADE'),
+ 'DEAL_YMD',
+ 'DATE_RANGE',
+ '{"startDate":"2024-01-01","endDate":"2024-03-01","format":"yyyyMM","interval":"MONTH"}',
+ '계약연월 - 최근 3개월',
+ TRUE,
+ 2);
+
+-- 업종별 통계 데이터 수집을 위한 샘플 Job 정의 추가
 INSERT IGNORE INTO job_definitions (
     job_code, 
     job_name, 
@@ -228,27 +269,42 @@ INSERT IGNORE INTO job_definitions (
     parameter_type,
     batch_size,
     delay_seconds,
-    use_region_codes,
-    date_range_months,
     created_by, 
     updated_by
 ) VALUES (
-    'REAL_ESTATE_OFFICETEL_TRADE',
-    '오피스텔 실거래가 데이터 수집',
-    '국토교통부 부동산 실거래가 공공 API를 통한 오피스텔 매매 실거래 정보 수집',
+    'BUSINESS_STATISTICS_BY_INDUSTRY',
+    '업종별 통계 데이터 수집',
+    '통계청 업종별 사업체 통계 데이터 수집',
     'API_GET',
-    'http://openapi.molit.go.kr/OpenAPI_ToolInstallPackage/service/rest/RTMSOBJSvc/getRTMSDataSvcOffiTrade',
-    '{"serviceKey":"YOUR_SERVICE_KEY","numOfRows":"1000","pageNo":"1"}',
-    '0 30 2 * * ?',
-    2,
+    'http://kosis.kr/openapi/statisticsData.do',
+    '{"serviceKey":"YOUR_SERVICE_KEY","method":"getList","format":"json"}',
+    '0 0 3 * * ?',
+    1,
     'ACTIVE',
-    'MATRIX',
-    15,
+    'MULTI_PARAM',
+    5,
     2,
-    TRUE,
-    6,
     'system',
     'system'
 );
+
+-- 업종별 통계 Job에 대한 파라미터 설정 추가
+INSERT IGNORE INTO job_parameter_configs (
+    job_definition_id,
+    parameter_name,
+    value_source_type,
+    value_source,
+    description,
+    is_active,
+    sort_order
+) VALUES 
+-- 업종코드 파라미터 (정적 목록)
+((SELECT id FROM job_definitions WHERE job_code = 'BUSINESS_STATISTICS_BY_INDUSTRY'),
+ 'INDUSTRY_CD',
+ 'STATIC_LIST',
+ '["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U"]',
+ '한국표준산업분류 대분류 코드',
+ TRUE,
+ 1);
 
 COMMIT; 

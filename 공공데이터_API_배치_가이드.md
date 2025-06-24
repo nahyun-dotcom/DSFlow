@@ -1,63 +1,33 @@
-# 공공데이터 API 다중 파라미터 배치 작업 가이드
+# 유연한 다중 파라미터 배치 작업 시스템 가이드
 
 ## 개요
 
-이 가이드는 공공데이터 API의 다중 파라미터 조합 호출을 위한 배치 작업 시스템 사용법을 설명합니다. 특히 부동산 실거래가 데이터와 같이 지역코드(LAWD_CD)와 계약연월(DEAL_YMD)을 조합하여 전국 데이터를 수집하는 방법을 다룹니다.
+이 가이드는 다양한 종류의 파라미터들을 유연하게 조합하여 API를 호출하는 배치 작업 시스템 사용법을 설명합니다. 지역코드, 날짜뿐만 아니라 업종코드, 카테고리코드, 기관코드 등 어떤 종류의 파라미터든 매트릭스 형태로 조합하여 대량의 API 호출을 자동화할 수 있습니다.
 
 ## 시스템 특징
 
-### 1. 다중 파라미터 조합 지원
+### 1. 유연한 파라미터 조합 지원
 - **SINGLE**: 단일 파라미터 작업
-- **MULTI_REGION**: 다중 지역코드 작업
-- **MULTI_DATE**: 다중 날짜 작업  
-- **MATRIX**: 지역코드 × 날짜 매트릭스 작업
+- **MULTI_PARAM**: 하나의 파라미터에 대해 여러 값들을 순차 처리
+- **MATRIX**: 여러 파라미터들의 조합을 매트릭스 형태로 처리 (데카르트 곱)
 
-### 2. API 제한 대응
-- 배치 크기 조절 (한 번에 처리할 파라미터 조합 수)
+### 2. 다양한 값 소스 지원
+- **DB_QUERY**: 데이터베이스 쿼리 결과
+- **STATIC_LIST**: 정적 값 목록 (JSON 배열)
+- **DATE_RANGE**: 날짜 범위 (시작일, 종료일, 간격)
+- **API_CALL**: 외부 API 호출 결과
+- **FILE_LIST**: 파일에서 읽어온 값 목록
+
+### 3. API 제한 대응
+- 배치 크기 조절 (동시 처리 개수 제한)
 - API 호출 간 지연 시간 설정
 - 시간차 분산 호출
 
-### 3. 자동화 스케줄링
-- Cron 표현식을 통한 정기 실행
-- 매일/매주/매월 자동 데이터 수집
-
 ## 사용 방법
 
-### 1. 지역코드 관리
+### 1. Job 정의 등록
 
-#### 지역코드 조회
-```bash
-# 활성화된 지역코드 목록 조회
-curl -X GET "http://localhost:8080/api/region-codes"
-
-# 지역코드만 조회
-curl -X GET "http://localhost:8080/api/region-codes/codes"
-
-# 지역코드 개수 조회
-curl -X GET "http://localhost:8080/api/region-codes/count"
-```
-
-#### 지역코드 추가
-```bash
-curl -X POST "http://localhost:8080/api/region-codes" \
-  -d "lawdCd=26110" \
-  -d "regionName=부산광역시 중구" \
-  -d "sidoName=부산광역시" \
-  -d "gugunName=중구"
-```
-
-#### 지역코드 상태 변경
-```bash
-# 비활성화
-curl -X PATCH "http://localhost:8080/api/region-codes/1/status?isActive=false"
-
-# 활성화
-curl -X PATCH "http://localhost:8080/api/region-codes/1/status?isActive=true"
-```
-
-### 2. Job 정의 등록
-
-#### 아파트 실거래가 수집 Job 등록 예시
+#### 부동산 실거래가 수집 Job 등록 예시
 ```json
 {
   "jobCode": "REAL_ESTATE_APARTMENT_TRADE",
@@ -70,128 +40,239 @@ curl -X PATCH "http://localhost:8080/api/region-codes/1/status?isActive=true"
   "resourceWeight": 2,
   "parameterType": "MATRIX",
   "batchSize": 10,
-  "delaySeconds": 1,
-  "useRegionCodes": true,
-  "dateRangeMonths": 3
+  "delaySeconds": 1
 }
 ```
 
-#### 주요 파라미터 설명
+### 2. 파라미터 설정 등록
 
-- **parameterType**: 
-  - `MATRIX`: 지역코드 × 날짜 조합 (전국 × 최근 N개월)
-  - `MULTI_REGION`: 지역코드별 단일 날짜
-  - `MULTI_DATE`: 단일 지역 × 여러 날짜
-  - `SINGLE`: 단일 파라미터
+#### 지역코드 파라미터 설정 (DB 쿼리)
+```json
+{
+  "parameterName": "LAWD_CD",
+  "valueSourceType": "DB_QUERY",
+  "valueSource": "SELECT lawd_cd FROM region_codes WHERE is_active = true ORDER BY lawd_cd",
+  "description": "법정동코드 - 활성화된 모든 지역",
+  "sortOrder": 1
+}
+```
 
-- **batchSize**: 한 번에 처리할 파라미터 조합 수 (API 제한 고려)
-- **delaySeconds**: API 호출 간 지연 시간 (초)
-- **dateRangeMonths**: 처리할 월 범위 (현재 기준 과거 N개월)
+#### 계약연월 파라미터 설정 (날짜 범위)
+```json
+{
+  "parameterName": "DEAL_YMD",
+  "valueSourceType": "DATE_RANGE",
+  "valueSource": "{\"startDate\":\"2024-01-01\",\"endDate\":\"2024-06-01\",\"format\":\"yyyyMM\",\"interval\":\"MONTH\"}",
+  "description": "계약연월 - 최근 6개월",
+  "sortOrder": 2
+}
+```
 
-### 3. Job 실행
+#### 업종코드 파라미터 설정 (정적 목록)
+```json
+{
+  "parameterName": "INDUSTRY_CD",
+  "valueSourceType": "STATIC_LIST",
+  "valueSource": "[\"A\", \"B\", \"C\", \"D\", \"E\", \"F\", \"G\", \"H\", \"I\", \"J\"]",
+  "description": "한국표준산업분류 대분류 코드",
+  "sortOrder": 1
+}
+```
 
-#### 수동 실행
+#### 외부 API 호출로 파라미터 값 가져오기
+```json
+{
+  "parameterName": "CATEGORY_CD",
+  "valueSourceType": "API_CALL",
+  "valueSource": "{\"url\":\"https://api.example.com/categories\",\"method\":\"GET\",\"jsonPath\":\"data.categories[].code\"}",
+  "description": "외부 API에서 가져온 카테고리 코드",
+  "sortOrder": 3
+}
+```
+
+### 3. 파라미터 타입별 동작 방식
+
+#### SINGLE 타입
+- 기본 파라미터만 사용하여 1회 API 호출
+- 파라미터 설정 불필요
+
+#### MULTI_PARAM 타입
+- 첫 번째 파라미터의 여러 값들에 대해 순차적으로 API 호출
+- 예: 업종코드 A, B, C, D... 각각에 대해 API 호출
+
+#### MATRIX 타입
+- 모든 파라미터들의 데카르트 곱으로 API 호출
+- 예: 지역코드(100개) × 계약연월(6개) = 600개 API 호출
+
+### 4. REST API 사용법
+
+#### Job 실행
 ```bash
 curl -X POST "http://localhost:8080/api/jobs/execute" \
   -H "Content-Type: application/json" \
   -d "{\"jobCode\": \"REAL_ESTATE_APARTMENT_TRADE\"}"
 ```
 
-#### 스케줄 실행
-- Cron 표현식에 따라 자동 실행
-- `0 0 2 * * ?`: 매일 새벽 2시 실행
-- `0 30 2 * * ?`: 매일 새벽 2시 30분 실행
-
-### 4. 실행 모니터링
-
-#### 실행 로그 조회
+#### 파라미터 설정 조회
 ```bash
-# 특정 Job의 실행 로그 조회
-curl -X GET "http://localhost:8080/api/logs?jobCode=REAL_ESTATE_APARTMENT_TRADE"
-
-# 최근 실행 로그 조회
-curl -X GET "http://localhost:8080/api/logs?limit=10"
+curl -X GET "http://localhost:8080/api/job-parameter-configs?jobDefinitionId=1"
 ```
 
 ## 실제 사용 시나리오
 
-### 시나리오 1: 서울시 아파트 실거래가 수집
+### 시나리오 1: 전국 부동산 실거래가 수집
 
-1. **지역코드 설정**: 서울시 25개 구 지역코드 활성화
-2. **Job 설정**: 
-   - parameterType: `MATRIX`
-   - batchSize: `5` (동시 호출 제한)
-   - delaySeconds: `2` (API 제한 대응)
-   - dateRangeMonths: `6` (최근 6개월)
+**설정**:
+- parameterType: `MATRIX`
+- 지역코드: DB에서 250개 지역 조회
+- 계약연월: 최근 12개월
+- batchSize: `20`
+- delaySeconds: `1`
 
-3. **예상 호출 수**: 25개 구 × 6개월 = 150개 API 호출
-4. **예상 소요 시간**: (150 ÷ 5) × 2초 = 60초
+**결과**: 250개 지역 × 12개월 = 3,000개 API 호출
+**소요시간**: (3,000 ÷ 20) × 1초 = 150초
 
-### 시나리오 2: 전국 오피스텔 실거래가 수집
+### 시나리오 2: 업종별 사업체 통계 수집
 
-1. **지역코드 설정**: 전국 시/군/구 지역코드 활성화 (약 250개)
-2. **Job 설정**:
-   - parameterType: `MATRIX`
-   - batchSize: `20` (큰 배치 크기)
-   - delaySeconds: `1` (빠른 수집)
-   - dateRangeMonths: `12` (최근 1년)
+**설정**:
+- parameterType: `MULTI_PARAM`
+- 업종코드: 정적 목록 21개 (A~U)
+- batchSize: `5`
+- delaySeconds: `2`
 
-3. **예상 호출 수**: 250개 지역 × 12개월 = 3,000개 API 호출
-4. **예상 소요 시간**: (3,000 ÷ 20) × 1초 = 150초 (약 2.5분)
+**결과**: 21개 업종코드에 대해 순차 API 호출
+**소요시간**: (21 ÷ 5) × 2초 = 8.4초
+
+### 시나리오 3: 다차원 통계 데이터 수집
+
+**설정**:
+- parameterType: `MATRIX`
+- 지역코드: 17개 시도
+- 업종코드: 21개 대분류
+- 기간코드: 4개 분기
+- batchSize: `10`
+- delaySeconds: `1`
+
+**결과**: 17 × 21 × 4 = 1,428개 API 호출
+**소요시간**: (1,428 ÷ 10) × 1초 = 142.8초
+
+## 값 소스 타입별 상세 설정
+
+### DB_QUERY
+```sql
+-- 활성화된 지역코드 조회
+SELECT lawd_cd FROM region_codes WHERE is_active = true ORDER BY lawd_cd
+
+-- 특정 레벨의 업종코드 조회
+SELECT code FROM industry_codes WHERE level = 1 AND is_active = true
+
+-- 최근 등록된 기관코드 조회
+SELECT org_code FROM organization_codes WHERE created_at >= DATE_SUB(NOW(), INTERVAL 1 YEAR)
+```
+
+### STATIC_LIST
+```json
+// 한국표준산업분류 대분류
+["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U"]
+
+// 월별 코드
+["202401", "202402", "202403", "202404", "202405", "202406"]
+
+// 사업체 규모 코드
+["1", "2", "3", "4", "5"]
+```
+
+### DATE_RANGE
+```json
+// 월별 범위 (yyyyMM 형식)
+{
+  "startDate": "2024-01-01",
+  "endDate": "2024-12-01", 
+  "format": "yyyyMM",
+  "interval": "MONTH"
+}
+
+// 일별 범위 (yyyyMMdd 형식)
+{
+  "startDate": "2024-01-01",
+  "endDate": "2024-01-31",
+  "format": "yyyyMMdd", 
+  "interval": "DAY"
+}
+
+// 분기별 범위 (yyyy0Q 형식)
+{
+  "startDate": "2024-01-01",
+  "endDate": "2024-12-01",
+  "format": "yyyy'Q'Q",
+  "interval": "QUARTER"
+}
+```
+
+### API_CALL
+```json
+// 외부 API에서 코드 목록 가져오기
+{
+  "url": "https://api.example.com/codes",
+  "method": "GET",
+  "jsonPath": "data.codes[]"
+}
+
+// 인증이 필요한 API
+{
+  "url": "https://api.example.com/categories",
+  "method": "POST",
+  "headers": {
+    "Authorization": "Bearer YOUR_TOKEN"
+  },
+  "jsonPath": "result.categories[].id"
+}
+```
 
 ## 최적화 팁
 
-### 1. API 제한 대응
-- 공공데이터 API는 보통 일일/시간당 호출 제한이 있음
-- `batchSize`와 `delaySeconds`를 조절하여 제한에 맞춤
-- 여러 시간대에 분산하여 실행
+### 1. 배치 크기 조절
+- API 제한이 엄격한 경우: batchSize `1-5`
+- 일반적인 공공데이터 API: batchSize `10-20`
+- 내부 API나 제한이 없는 경우: batchSize `50-100`
 
-### 2. 스케줄링 전략
+### 2. 지연 시간 설정
+- 공공데이터 API: `1-2초`
+- 상용 API 서비스: `0.5-1초`
+- 내부 API: `0-0.5초`
+
+### 3. 스케줄링 전략
 ```bash
-# 아파트: 매일 새벽 2시
-"0 0 2 * * ?"
+# 대용량 데이터 수집: 새벽 시간대
+"0 0 2 * * ?" # 매일 새벽 2시
 
-# 오피스텔: 매일 새벽 2시 30분 
-"0 30 2 * * ?"
+# 중간 규모: 이른 아침
+"0 0 6 * * ?" # 매일 아침 6시
 
-# 연립다세대: 매일 새벽 3시
-"0 0 3 * * ?"
+# 소규모: 주기적 수집
+"0 */30 * * * ?" # 30분마다
 ```
 
-### 3. 지역별 분할 전략
-- 수도권/지방 분리 실행
-- 광역시/시군구 분리 실행
-- 인구 밀도에 따른 우선순위 설정
+### 4. 매트릭스 조합 최적화
+- 파라미터 순서를 변경 빈도 순으로 정렬
+- 가장 자주 변하는 파라미터를 마지막에 배치
+- 총 조합 수가 너무 많으면 파라미터를 분할하여 여러 Job으로 나눔
 
-## 에러 처리
+## 에러 처리 및 모니터링
 
-### 1. API 호출 실패
-- 개별 API 호출 실패 시 로그 기록
-- 다음 파라미터 조합 계속 처리
+### 1. 값 소스 오류
+- DB_QUERY: 쿼리 문법 오류, 권한 부족
+- API_CALL: 네트워크 오류, 인증 실패
+- STATIC_LIST: JSON 형식 오류
+
+### 2. API 호출 오류
+- 개별 파라미터 조합 실패 시 다음 조합 계속 처리
 - 전체 Job 실행 결과에 성공/실패 건수 기록
+- 실패율이 임계치를 초과하면 Job 중단
 
-### 2. 재시도 전략
-- 일시적 네트워크 오류 시 재시도
-- 서비스 키 오류, 파라미터 오류 등은 재시도 안함
+### 3. 성능 모니터링
+- 파라미터 조합 생성 시간
+- API 호출 응답 시간
+- 배치 처리 처리량 (TPS)
 
-### 3. 모니터링
-- Job 실행 상태 실시간 모니터링
-- 실패율이 높을 경우 알림
-- API 응답 시간 모니터링
-
-## 확장 방안
-
-### 1. 새로운 공공데이터 API 추가
-- 기상청 날씨 데이터
-- 통계청 인구 데이터
-- 환경부 대기질 데이터
-
-### 2. 데이터 저장 및 가공
-- 수집된 데이터의 DB 저장
-- 데이터 정제 및 변환
-- 분석용 데이터 마트 구축
-
-### 3. 실시간 모니터링 대시보드
-- Job 실행 현황 시각화
-- API 호출 성공률 모니터링
-- 데이터 수집량 추이 분석 
+이 시스템을 통해 어떤 종류의 공공데이터나 API든 유연하게 다중 파라미터를 조합하여 대량의 데이터를 효율적으로 수집할 수 있습니다. 
