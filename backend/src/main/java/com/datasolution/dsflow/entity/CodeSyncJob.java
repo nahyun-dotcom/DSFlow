@@ -111,4 +111,89 @@ public class CodeSyncJob {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id")
     private CodeCategory category;
+
+    // 추가 getter 메서드들
+    public String getSyncJobCode() {
+        return syncJobCode;
+    }
+
+    public String getSyncJobName() {
+        return syncJobName;
+    }
+
+    public String getTargetCategoryCode() {
+        return targetCategoryCode;
+    }
+
+    public String getApiUrl() {
+        return apiUrl;
+    }
+
+    public String getHttpMethod() {
+        return httpMethod;
+    }
+
+    public String getRequestHeaders() {
+        return requestHeaders;
+    }
+
+    public String getRequestParameters() {
+        return requestParameters;
+    }
+
+    public String getRequestBody() {
+        return requestBody;
+    }
+
+    public String getCodeValueJsonPath() {
+        return codeValueJsonPath;
+    }
+
+    public String getCodeNameJsonPath() {
+        return codeNameJsonPath;
+    }
+
+    public String getMetadataJsonPath() {
+        return metadataJsonPath;
+    }
+
+    public String getParentCodeJsonPath() {
+        return parentCodeJsonPath;
+    }
+
+    public String getCronExpression() {
+        return cronExpression;
+    }
+
+    public Boolean getAutoSync() {
+        return autoSync;
+    }
+
+    public Integer getTimeoutSeconds() {
+        return timeoutSeconds;
+    }
+
+    public Integer getRetryCount() {
+        return retryCount;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setIsActive(boolean isActive) {
+        this.isActive = isActive;
+    }
+
+    public void setLastSyncTime(LocalDateTime lastSyncTime) {
+        this.lastSyncTime = lastSyncTime;
+    }
+
+    public void setLastSyncResult(String lastSyncResult) {
+        this.lastSyncResult = lastSyncResult;
+    }
+
+    public void setLastSyncCount(int lastSyncCount) {
+        this.lastSyncCount = lastSyncCount;
+    }
 } 

@@ -57,4 +57,13 @@ public class CodeCategory {
     // 카테고리에 속한 코드 값들
     @OneToMany(mappedBy = "category", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<CodeValue> codeValues;
+
+    // 추가 getter 메서드들
+    public String getCategoryCode() {
+        return categoryCode;
+    }
+
+    public void setIsActive(Boolean isActive) {
+        this.isActive = isActive;
+    }
 } 

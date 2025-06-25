@@ -52,4 +52,13 @@ public class JobParameterConfig {
     @UpdateTimestamp
     @Column(nullable = false)
     private LocalDateTime updatedAt;
+
+    // 추가 getter 메서드들
+    public String getValueSourceType() {
+        return valueSourceType;
+    }
+
+    public String getValueSource() {
+        return valueSource;
+    }
 } 

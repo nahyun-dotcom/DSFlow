@@ -59,4 +59,25 @@ public class CodeValue {
 
     @Column(length = 100)
     private String updatedBy;
+
+    // 추가 getter 메서드들
+    public String getCodeValue() {
+        return codeValue;
+    }
+
+    public Boolean getIsActive() {
+        return isActive;
+    }
+
+    public String getMetadata() {
+        return metadata;
+    }
+
+    public LocalDateTime getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setIsActive(Boolean isActive) {
+        this.isActive = isActive;
+    }
 } 

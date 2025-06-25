@@ -45,9 +45,6 @@ DSFlow/
 git clone <repository-url>
 cd DSFlow
 
-# 자동 실행 스크립트 사용
-./start-local.sh
-```
 
 **수동 실행:**
 ```bash
@@ -113,16 +110,6 @@ docker-compose -f docker/docker-compose.yml down
 
 # 데이터까지 완전 삭제
 docker-compose -f docker/docker-compose.yml down -v
-```
-
-
-#### 🎯 한 줄 실행 (권장)
-```bash
-# 실행 권한 부여 (최초 1회)
-chmod +x run.sh
-
-# 전체 시스템 자동 실행
-./run.sh
 ```
 
 ### 개발 모드 실행
