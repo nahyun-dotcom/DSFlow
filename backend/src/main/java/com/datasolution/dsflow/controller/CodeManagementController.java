@@ -17,7 +17,7 @@ import java.util.Map;
 @RequestMapping("/api/codes")
 @RequiredArgsConstructor
 @Slf4j
-@Tag(name = "코드 관리", description = "유연한 코드 관리 시스템 API")
+@Tag(name = "코드 관리")
 public class CodeManagementController {
 
     private final CodeManagementService codeManagementService;
