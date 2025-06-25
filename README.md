@@ -115,7 +115,6 @@ docker-compose -f docker/docker-compose.yml down
 docker-compose -f docker/docker-compose.yml down -v
 ```
 
-> 📝 **자세한 실행 가이드**: [DOCKER_RUN_GUIDE.md](./DOCKER_RUN_GUIDE.md)를 참조하세요.
 
 #### 🎯 한 줄 실행 (권장)
 ```bash
