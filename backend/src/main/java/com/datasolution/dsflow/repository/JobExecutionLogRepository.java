@@ -1,5 +1,6 @@
 package com.datasolution.dsflow.repository;
 
+import com.datasolution.dsflow.dto.JobStatisticsDto;
 import com.datasolution.dsflow.entity.JobExecutionLog;
 import com.datasolution.dsflow.entity.enums.ExecutionStatus;
 import org.springframework.data.domain.Page;
@@ -46,4 +47,27 @@ public interface JobExecutionLogRepository extends JpaRepository<JobExecutionLog
     @Query("SELECT jel FROM JobExecutionLog jel WHERE jel.jobDefinition.jobCode = :jobCode AND jel.baseDate = :baseDate AND jel.status IN ('STARTED', 'RUNNING')")
     List<JobExecutionLog> findRunningJobsByJobCodeAndBaseDate(@Param("jobCode") String jobCode, 
                                                              @Param("baseDate") LocalDate baseDate);
+
+    @Query("SELECT new com.datasolution.dsflow.dto.JobStatisticsDto(" +
+            "log.jobDefinition.jobCode, log.jobDefinition.jobName, " +
+            "COUNT(log), " +
+            "SUM(CASE WHEN log.status = 'SUCCESS' THEN 1 ELSE 0 END), " +
+            "SUM(CASE WHEN log.status = 'FAILED' THEN 1 ELSE 0 END), " +
+            "MAX(log.endTime)) " +
+            "FROM JobExecutionLog log " +
+            "GROUP BY log.jobDefinition.jobCode, log.jobDefinition.jobName")
+    List<JobStatisticsDto> findJobStatistics();
+
+    @Query("SELECT new com.datasolution.dsflow.dto.JobStatisticsDto(" +
+            "log.jobDefinition.jobCode, log.jobDefinition.jobName, " +
+            "COUNT(log), " +
+            "SUM(CASE WHEN log.status = 'SUCCESS' THEN 1 ELSE 0 END), " +
+            "SUM(CASE WHEN log.status = 'FAILED' THEN 1 ELSE 0 END), " +
+            "MAX(log.endTime)) " +
+            "FROM JobExecutionLog log " +
+            "WHERE log.startTime BETWEEN :start AND :end " +
+            "GROUP BY log.jobDefinition.jobCode, log.jobDefinition.jobName")
+    List<JobStatisticsDto> findByJobCodeAndStartTimeBetween(@Param("start") LocalDateTime start,
+                                                     @Param("end") LocalDateTime end);
+
 } 

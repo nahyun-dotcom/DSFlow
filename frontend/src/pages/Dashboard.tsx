@@ -10,6 +10,7 @@ import {
 const { Title } = Typography
 
 const Dashboard: React.FC = () => {
+
   return (
     <div>
       <Title level={2}>대시보드</Title>

@@ -36,6 +36,11 @@ const AppSider: React.FC = () => {
       icon: <CloudSyncOutlined />,
       label: '코드 동기화',
     },
+    {
+      key: '/statistics',
+      icon: <CloudSyncOutlined />,
+      label: '로그 통계',
+    },
   ]
 
   return (
