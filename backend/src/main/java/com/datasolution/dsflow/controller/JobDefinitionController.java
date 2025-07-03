@@ -23,6 +23,11 @@ public class JobDefinitionController {
 
     private final JobDefinitionService jobDefinitionService;
 
+    /***
+     *  Job 목록 조회
+     * @param pageable
+     * @return JobDefinitionDto
+     */
     @GetMapping
     @Operation(summary = "Job 목록 조회", description = "등록된 모든 Job 목록을 페이징하여 조회합니다.")
     public ResponseEntity<Page<JobDefinitionDto>> getAllJobs(
